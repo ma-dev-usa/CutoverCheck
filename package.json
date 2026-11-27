@@ -1,0 +1,13 @@
+{
+  "name": "cutovercheck",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Inventory migration reconciliation",
+  "scripts": {
+    "test": "node --test tests/reconcile.test.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

@@ -1,0 +1,26 @@
+name: Validation
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm test
+      - run: python -m unittest discover -s tests -p 'test_sql.py'
+      - name: Check CLI decisions and report reproducibility
+        shell: bash
+        run: |
+          node src/cli.mjs fixtures/clean.csv fixtures/clean.csv > /tmp/ready.json
+          diff -u reports/ready.json /tmp/ready.json
+          code=0
+          node src/cli.mjs fixtures/source.csv fixtures/target.csv > /tmp/blocked.json || code=$?
+          test "$code" -eq 2
+          diff -u reports/blocked.json /tmp/blocked.json

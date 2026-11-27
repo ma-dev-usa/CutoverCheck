@@ -1,0 +1,46 @@
+{
+  "status": "BLOCKED",
+  "sourceRecords": 8,
+  "targetRecords": 7,
+  "compared": 4,
+  "matched": 3,
+  "withinTolerance": 0,
+  "tolerance": 0,
+  "issues": [
+    {
+      "type": "duplicate",
+      "side": "source",
+      "sku": "A500",
+      "warehouse": "SEA",
+      "detail": "2 records share this key"
+    },
+    {
+      "type": "invalid",
+      "side": "target",
+      "sku": "A600",
+      "warehouse": "SEA",
+      "detail": "Record 6: invalid key, quantity or column count"
+    },
+    {
+      "type": "mismatch",
+      "side": "both",
+      "sku": "A200",
+      "warehouse": "PDX",
+      "detail": "Source 10, target 7, delta -3"
+    },
+    {
+      "type": "missing",
+      "side": "target",
+      "sku": "A400",
+      "warehouse": "SEA",
+      "detail": "Source quantity 14 has no target record"
+    },
+    {
+      "type": "unexpected",
+      "side": "target",
+      "sku": "A800",
+      "warehouse": "SEA",
+      "detail": "Target quantity 9 has no source record"
+    }
+  ]
+}

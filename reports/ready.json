@@ -1,0 +1,10 @@
+{
+  "status": "READY",
+  "sourceRecords": 7,
+  "targetRecords": 7,
+  "compared": 7,
+  "matched": 7,
+  "withinTolerance": 0,
+  "tolerance": 0,
+  "issues": []
+}

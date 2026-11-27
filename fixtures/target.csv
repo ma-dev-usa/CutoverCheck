@@ -1,0 +1,8 @@
+sku,warehouse,quantity
+A100,PDX,25
+A200,PDX,7
+A300,PDX,8
+A500,SEA,4
+A600,SEA,-2
+A700,SEA,6
+A800,SEA,9

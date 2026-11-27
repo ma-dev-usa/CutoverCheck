@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>CutoverCheck</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f4f6f8;color:#182838;font:15px system-ui,sans-serif}main{max-width:1100px;margin:auto;padding:36px 20px}h1{font-size:32px;margin:0}h2{font-size:19px}p{line-height:1.5;color:#435568}.eyebrow{font-size:12px;letter-spacing:.13em;text-transform:uppercase;color:#49627c;font-weight:700}section{background:white;padding:22px;border:1px solid #d7dfe7;border-radius:10px;margin:18px 0}.inputs,.metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.metrics{grid-template-columns:repeat(4,minmax(0,1fr))}.metric{padding:15px;background:#f1f5f9;border-radius:6px}.metric strong{display:block;font-size:26px;margin-top:6px}label{font-weight:600;display:block;margin-bottom:6px}textarea{width:100%;height:165px;resize:vertical;padding:10px;font:13px monospace;border:1px solid #9babbc;border-radius:5px}button,input{font:inherit}button{background:#18486c;color:white;padding:10px 15px;border:0;border-radius:6px;cursor:pointer;margin:5px 7px 5px 0}button.secondary{background:#e5ecf2;color:#223a50}input[type=number]{width:90px;padding:7px}table{border-collapse:collapse;width:100%;font-size:14px}td,th{text-align:left;padding:10px;border-bottom:1px solid #dfe5eb;vertical-align:top}th{background:#edf2f7}.scroll{overflow:auto}.blocked{color:#a12b22}.ready{color:#17664d}#error{color:#a12b22;white-space:pre-wrap}small{color:#536779}@media(max-width:650px){.inputs,.metrics{grid-template-columns:1fr}main{padding:20px 12px}}
+</style></head><body><main><div class="eyebrow">Implementation assurance / inventory migration</div><h1>CutoverCheck</h1><p>Compare legacy inventory balances with a target export. Identify data quality and reconciliation exceptions before go-live.</p>
+<section><div class="inputs"><div><label for="source">Source CSV</label><textarea id="source" spellcheck="false"></textarea><label for="sourceFile">Load source file</label><input type="file" id="sourceFile" accept=".csv,text/csv"></div><div><label for="target">Target CSV</label><textarea id="target" spellcheck="false"></textarea><label for="targetFile">Load target file</label><input type="file" id="targetFile" accept=".csv,text/csv"></div></div><p><label for="tolerance">Quantity tolerance (units)</label><input id="tolerance" type="number" min="0" max="1000000000" value="0" step="1"></p><button id="run">Run reconciliation</button><button class="secondary" id="sample">Load exception scenario</button><button class="secondary" id="clean">Load clean scenario</button><button class="secondary" id="export" disabled>Export JSON</button><div id="error" role="alert"></div><small>Files are processed locally in your browser. No network requests or uploads.</small></section>
+<section aria-live="polite"><h2 id="status">Results</h2><div id="metrics" class="metrics"></div><h2>Exception register</h2><div class="scroll"><table><thead><tr><th>Type</th><th>Side</th><th>SKU</th><th>Warehouse</th><th>Evidence</th></tr></thead><tbody id="issues"></tbody></table></div><p id="note"></p></section><small>Demonstration using synthetic data. Business sign-off and broader integration testing are separate controls.</small></main><script>
+function parseCsv(text) {
+  text=text.replace(/^\uFEFF/,"");
+  const rows=[]; let row=[],field="",quoted=false,closed=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(quoted){if(c==='"'){if(text[i+1]==='"'){field+='"';i++;}else{quoted=false;closed=true;}}else field+=c;continue;}
+    if(c===","){row.push(field);field="";closed=false;}
+    else if(c==="\n"||c==="\r"){if(c==="\r"&&text[i+1]==="\n")i++;row.push(field);if(row.some(v=>v!==""))rows.push(row);row=[];field="";closed=false;}
+    else if(c==='"'&&!field&&!closed)quoted=true;
+    else if(c==='"'||closed)throw new Error("Malformed CSV quoting");
+    else field+=c;
+  }
+  if(quoted)throw new Error("Unclosed CSV field");
+  if(field||row.length||closed){row.push(field);if(row.some(v=>v!==""))rows.push(row);}
+  if(!rows.length)throw new Error("CSV is empty");
+  const header=rows.shift().map(v=>v.trim());
+  if(header.length!==3||new Set(header).size!==3||!["sku","warehouse","quantity"].every(v=>header.includes(v)))throw new Error("Expected columns: sku, warehouse, quantity");
+  if(rows.length>100000)throw new Error("Maximum 100,000 records per file");
+  return rows.map((r,i)=>({line:i+2,sku:r[header.indexOf("sku")]?.trim()??"",warehouse:r[header.indexOf("warehouse")]?.trim()??"",quantity:r[header.indexOf("quantity")]?.trim()??"",width:r.length}));
+}
+
+function reconcile(source,target,tolerance=0){
+  if(!Number.isSafeInteger(tolerance)||tolerance<0||tolerance>1000000000)throw new Error("Tolerance must be a nonnegative integer up to 1 billion");
+  const issues=[], blocked=new Set();
+  function index(rows,side){
+    const groups=new Map();
+    for(const row of rows){
+      const key=JSON.stringify([row.sku,row.warehouse]);
+      const validKey=Boolean(row.sku&&row.warehouse);
+      if(row.width!==3||!validKey||!/^\d+$/.test(row.quantity)||Number(row.quantity)>1000000000){
+        issues.push({type:"invalid",side,sku:row.sku,warehouse:row.warehouse,detail:"Record "+row.line+": invalid key, quantity or column count"});
+        if(validKey)blocked.add(key);
+        continue;
+      }
+      if(!groups.has(key))groups.set(key,[]);
+      groups.get(key).push(Number(row.quantity));
+    }
+    const result=new Map();
+    for(const [key,values] of groups){
+      const [sku,warehouse]=JSON.parse(key);
+      if(values.length>1){blocked.add(key);issues.push({type:"duplicate",side,sku,warehouse,detail:values.length+" records share this key"});}
+      else result.set(key,values[0]);
+    }
+    return result;
+  }
+  const a=index(source,"source"),b=index(target,"target");
+  let matched=0,withinTolerance=0,compared=0;
+  for(const key of new Set([...a.keys(),...b.keys()])){
+    if(blocked.has(key))continue;
+    const [sku,warehouse]=JSON.parse(key);
+    const s=a.get(key),t=b.get(key);
+    if(s===undefined)issues.push({type:"unexpected",side:"target",sku,warehouse,detail:"Target quantity "+t+" has no source record"});
+    else if(t===undefined)issues.push({type:"missing",side:"target",sku,warehouse,detail:"Source quantity "+s+" has no target record"});
+    else {compared++;const delta=t-s;if(delta===0)matched++;else if(Math.abs(delta)<=tolerance)withinTolerance++;else issues.push({type:"mismatch",side:"both",sku,warehouse,detail:"Source "+s+", target "+t+", delta "+delta});}
+  }
+  if(!source.length||!target.length)issues.push({type:"empty",side:!source.length&&!target.length?"both":!source.length?"source":"target",sku:"",warehouse:"",detail:"At least one dataset has no records"});
+  return {status:issues.length?"BLOCKED":"READY",sourceRecords:source.length,targetRecords:target.length,compared,matched,withinTolerance,tolerance,issues};
+}
+
+const sourceSample="sku,warehouse,quantity\nA100,PDX,25\nA200,PDX,10\nA300,PDX,8\nA400,SEA,14\nA500,SEA,4\nA500,SEA,4\nA600,SEA,12\nA700,SEA,6\n",targetSample="sku,warehouse,quantity\nA100,PDX,25\nA200,PDX,7\nA300,PDX,8\nA500,SEA,4\nA600,SEA,-2\nA700,SEA,6\nA800,SEA,9\n",cleanSample="sku,warehouse,quantity\nA100,PDX,25\nA200,PDX,10\nA300,PDX,8\nA400,SEA,14\nA500,SEA,4\nA600,SEA,12\nA700,SEA,6\n";
+const el=id=>document.getElementById(id);let latest=null;
+function run(){try{el('error').textContent='';latest=reconcile(parseCsv(el('source').value),parseCsv(el('target').value),Number(el('tolerance').value));el('status').textContent='Cutover decision: '+latest.status;el('status').className=latest.status==='READY'?'ready':'blocked';el('metrics').replaceChildren();for(const [label,val] of [['Source records',latest.sourceRecords],['Target records',latest.targetRecords],['Exact matches',latest.matched],['Blocking findings',latest.issues.length]]){const d=document.createElement('div');d.className='metric';d.textContent=label;const s=document.createElement('strong');s.textContent=val;d.append(s);el('metrics').append(d);}el('issues').replaceChildren();for(const x of latest.issues){const tr=document.createElement('tr');for(const k of ['type','side','sku','warehouse','detail']){const td=document.createElement('td');td.textContent=x[k];tr.append(td);}el('issues').append(tr);}el('note').textContent=latest.issues.length?'Resolve blockers and re-run both exports.':'No blocking findings. '+latest.withinTolerance+' matched within tolerance.';el('export').disabled=false;}catch(e){latest=null;el('error').textContent=e.message;el('status').textContent='Results unavailable';el('status').className='blocked';el('metrics').replaceChildren();el('issues').replaceChildren();el('note').textContent='';el('export').disabled=true;}}
+function load(a,b){el('source').value=a;el('target').value=b;el('tolerance').value='0';run();}
+el('run').onclick=run;el('sample').onclick=()=>load(sourceSample,targetSample);el('clean').onclick=()=>load(cleanSample,cleanSample);
+for(const side of ['source','target'])el(side+'File').onchange=async e=>{try{const f=e.target.files[0];if(!f)return;if(f.size>10000000)throw Error('File exceeds 10 MB');el(side).value=await f.text();run();}catch(err){el('error').textContent=err.message;}};
+el('export').onclick=()=>{if(!latest)return;const url=URL.createObjectURL(new Blob([JSON.stringify(latest,null,2)+'\n'],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='cutover-report.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};load(sourceSample,targetSample);
+</script></body></html>
