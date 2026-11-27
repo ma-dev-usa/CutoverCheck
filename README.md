@@ -1,33 +1,80 @@
-# CutoverCheck
+<p align="center">
+  <img src="docs/brand.svg" alt="CutoverCheck | Data migration assurance" width="100%">
+</p>
 
-Inventory migration reconciliation for SaaS and ERP implementations.
+<p align="center">
+  <b>Inventory migration reconciliation for ERP and enterprise SaaS implementations.</b>
+</p>
 
-A cutover can fail even when source and target record counts agree. Missing stock records, duplicate item/location keys, invalid quantities and changed balances need to be isolated before the business approves a migration. CutoverCheck compares two CSV exports and produces an auditable exception register and a deterministic readiness decision.
+<p align="center">
+  <img alt="Version 1.0.0" src="https://img.shields.io/badge/version-1.0.0-294d67?style=flat-square">
+  <img alt="Node.js 22+" src="https://img.shields.io/badge/Node.js-22%2B-294d67?style=flat-square">
+  <img alt="Runtime dependencies: zero" src="https://img.shields.io/badge/runtime_dependencies-0-294d67?style=flat-square">
+  <img alt="Validation workflow" src="../../actions/workflows/ci.yml/badge.svg">
+</p>
 
-![Sample reconciliation report preview](docs/preview.svg)
+<p align="center">
+  <a href="reports/blocked.md">Sample report</a> &nbsp; | &nbsp;
+  <a href="reports/ready.md">Corrected migration</a> &nbsp; | &nbsp;
+  <a href="docs/implementation.md">Case study</a> &nbsp; | &nbsp;
+  <a href="demo.html">Browser demo</a>
+</p>
 
-## Review in two minutes
+## Overview
 
-| Scenario | Result | Evidence |
+CutoverCheck compares legacy and target inventory exports before a system cutover. Matching record counts alone cannot establish that a migration is correct: duplicate item/location keys, missing stock, invalid values and quantity variances can still disrupt operations.
+
+The tool produces a deterministic readiness decision and an exception register with record-level evidence. It runs locally, requires no credentials, and does not modify either system.
+
+![Sample reconciliation report](docs/preview.svg)
+
+## Demonstration
+
+| Migration scenario | Result | Evidence |
 |---|---|---|
-| Migration with seeded defects | BLOCKED | [Exception report](reports/blocked.md) |
-| Corrected migration | READY | [Clean report](reports/ready.md) |
+| Seeded exceptions | **BLOCKED** | [Five blocking findings](reports/blocked.md) |
+| Corrected dataset | **READY** | [Seven exact matches](reports/ready.md) |
 
-The exception fixture contains 8 source and 7 target records. The tool identifies five blocking findings: an invalid quantity, duplicate key, missing record, unexpected record and quantity mismatch. The corrected fixture contains seven unique item/location balances, all of which reconcile exactly.
+Both scenarios use committed synthetic fixtures. The first run identifies a duplicate key, invalid quantity, missing record, unexpected record and quantity mismatch. After correction, all seven item/location balances reconcile exactly.
 
-- [Implementation case study and acceptance criteria](docs/implementation.md)
-- [SQL reconciliation queries](sql/reconciliation.sql)
-- [Architecture and tradeoffs](docs/design.md)
-- [Example machine-readable report](reports/blocked.json)
-- [Test suite](tests/reconcile.test.mjs)
+**Start here:** The reports and [implementation case study](docs/implementation.md) can be read directly on GitHub without installing software.
 
-## Browser demo
+## Capabilities
 
-[Download the standalone demo HTML](demo.html) using GitHub's download button and open it in a browser. Both sample scenarios are embedded; no installation, server, credentials or dependencies are required. The demo also accepts local CSV files and exports JSON. A hosted GitHub Pages deployment is not required for reviewing the reports above.
+| Area | Implementation |
+|---|---|
+| Data quality | Required fields, integer quantity validation, composite-key uniqueness |
+| Reconciliation | Missing and unexpected records, quantity differences, configurable tolerance |
+| Implementation assurance | Readiness decision, exception ownership, UAT acceptance criteria |
+| SQL analytics | Staging constraints, CTEs, joins, warehouse summaries, window-function ranking |
+| Interfaces | Standalone browser demo and CLI with JSON export |
+| Verification | Regression tests, SQL checks, report reproducibility and CI configuration |
 
-## CLI
+## Architecture
 
-Node.js 22+; no npm dependencies.
+```mermaid
+flowchart LR
+    S[Source CSV] --> V[Validate records]
+    T[Target CSV] --> V
+    V --> R[Reconcile unique keys]
+    V --> E[Exception register]
+    R --> E
+    E --> D[Readiness decision]
+    D --> J[JSON report]
+    D --> B[Browser interface]
+```
+
+The engine uses indexed composite-key comparisons with expected linear time and space complexity. The [SQL companion](sql/reconciliation.sql) independently analyzes validated staging data. See [design decisions](docs/design.md) for tradeoffs and scope.
+
+## Quick start
+
+### Browser
+
+Open [demo.html](demo.html) on GitHub and use the download option. Open the downloaded file in a browser. The sample scenarios are embedded and the demo also accepts local CSV files. No server, dependencies or credentials are needed.
+
+### Command line
+
+Requires Node.js 22 or later. From a local copy of the repository:
 
 ```sh
 node src/cli.mjs fixtures/source.csv fixtures/target.csv
@@ -35,33 +82,59 @@ node src/cli.mjs fixtures/clean.csv fixtures/clean.csv
 npm test
 ```
 
-The CLI returns exit code 0 when ready, 2 when blocked and 1 for input errors. JSON output can be redirected to a file. Optional third positional argument is the integer quantity tolerance (default 0).
+| Exit code | Meaning |
+|---:|---|
+| 0 | READY |
+| 1 | Input or usage error |
+| 2 | BLOCKED |
+
+Redirect stdout to save a JSON report. An optional third positional argument specifies quantity tolerance in units (default: 0).
 
 ## Input contract
 
-CSV headers: `sku,warehouse,quantity` (any column order). SKU and warehouse are case-sensitive after trimming whitespace; the combination is the business key. Quantity must be a nonnegative integer no larger than 1 billion. Blank rows are ignored. Quoted CSV fields, escaped quotes and CRLF are supported. The record number in findings counts logical nonblank CSV records including the header. Files are limited to 100,000 data rows, and the CLI and demo file picker limit each file to 10 MB.
+```csv
+sku,warehouse,quantity
+A100,PDX,25
+A200,SEA,10
+```
+
+Column order may vary. SKU and warehouse are case-sensitive after trimming whitespace. Their combination is the business key. Quantities must be nonnegative integers up to 1 billion. Quoted fields, escaped quotes and CRLF are supported. Blank lines are ignored; delimiter-only records are invalid. Findings use logical nonblank record numbers including the header. Input is capped at 100,000 data records per file; the CLI and browser file picker cap files at 10 MB.
 
 ## Decision rules
 
 | Finding | Condition |
 |---|---|
 | Invalid | Missing key, malformed quantity or wrong column count |
-| Duplicate | Multiple valid records with the same key on either side |
-| Missing | Valid unique source key absent from target |
-| Unexpected | Valid unique target key absent from source |
+| Duplicate | Multiple valid records share a key on either side |
+| Missing | Unique source key absent from target |
+| Unexpected | Unique target key absent from source |
 | Mismatch | Absolute quantity difference exceeds tolerance |
-| Empty | Either dataset has no data records |
+| Empty | Either dataset contains no data records |
 
-Invalid or duplicate keys are excluded from cross-file comparisons to avoid misleading secondary exceptions. Any finding blocks readiness. Within-tolerance differences are counted separately from exact matches.
+Invalid or duplicate keys are excluded from cross-file comparisons to avoid misleading secondary findings. Any finding blocks readiness. Within-tolerance differences are counted separately from exact matches.
 
-## Repository layout
+## Repository guide
 
-- `src/`: reconciliation engine and CLI.
-- `demo.html`: standalone browser interface with the same reconciliation logic.
-- `fixtures/`: synthetic migration exports.
-- `reports/`: precomputed examples.
-- `sql/`: relational reconciliation companion.
-- `tests/`: automated regression checks.
-- `docs/`: implementation case study and design decisions.
+| Location | Purpose |
+|---|---|
+| [src/](src/) | Reconciliation engine and command-line interface |
+| [demo.html](demo.html) | Standalone browser interface |
+| [fixtures/](fixtures/) | Repeatable synthetic migration exports |
+| [reports/](reports/) | Example Markdown and JSON results |
+| [sql/](sql/) | Relational reconciliation and analytics |
+| [tests/](tests/) | JavaScript and SQL regression tests |
+| [docs/](docs/) | Implementation notes, architecture and reviewer walkthrough |
+| [.github/workflows/](.github/workflows/) | Automated validation |
 
-This is a self-contained implementation lab, using fictional inventory data. It does not connect to a commercial ERP or WMS. A READY result is a technical control, not final business approval.
+## Validation
+
+```sh
+npm test
+python -m unittest discover -s tests -p 'test_sql.py'
+```
+
+CI checks the regression suites, CLI exit codes, reproducibility of committed JSON reports and consistency between the browser and CLI engine. See [verification guide](docs/verification.md) for expected results.
+
+## Scope
+
+CutoverCheck is a self-contained implementation lab using fictional inventory data. It does not connect to commercial ERP or WMS systems. A READY decision confirms the configured checks passed; operational UAT, rollback planning, integration validation and business sign-off are separate controls.

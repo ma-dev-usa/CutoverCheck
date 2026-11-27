@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 220" role="img" aria-labelledby="title description">
+<title id="title">CutoverCheck</title><desc id="description">Inventory migration assurance, data quality and reconciliation.</desc>
+<rect width="960" height="220" rx="12" fill="#142b3e"/>
+<g fill="none" stroke="#6e9bb4" stroke-width="1" opacity=".25">
+<path d="M650 0v220M700 0v220M750 0v220M800 0v220M850 0v220M900 0v220M950 0v220M630 40h330M630 90h330M630 140h330M630 190h330"/>
+</g>
+<g font-family="Arial, Helvetica, sans-serif">
+<text x="38" y="45" fill="#a6c7d7" font-size="13" font-weight="bold" letter-spacing="3">IMPLEMENTATION ASSURANCE</text>
+<text x="35" y="111" fill="#ffffff" font-size="56" font-weight="bold" letter-spacing="-2">CutoverCheck</text>
+<text x="38" y="150" fill="#cfdee7" font-size="20">Inventory migration and data reconciliation</text>
+<text x="38" y="188" fill="#9fb9c8" font-size="13" letter-spacing="1">VALIDATE  /  RECONCILE  /  REVIEW</text>
+</g>
+<g transform="translate(746 39)" fill="none" stroke-linejoin="round">
+<rect x="0" y="0" width="124" height="142" rx="10" fill="#203d51" stroke="#587b90" stroke-width="2"/>
+<path d="M24 33h75M24 57h75M24 81h75M24 105h47" stroke="#799eb2" stroke-width="5" stroke-linecap="round"/>
+<circle cx="112" cy="120" r="35" fill="#d2e9e2" stroke="#142b3e" stroke-width="5"/>
+<path d="M96 120l11 11 21-24" stroke="#23674e" stroke-width="6" stroke-linecap="round"/>
+</g></svg>
