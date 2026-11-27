@@ -4,6 +4,8 @@ Inventory migration reconciliation for SaaS and ERP implementations.
 
 A cutover can fail even when source and target record counts agree. Missing stock records, duplicate item/location keys, invalid quantities and changed balances need to be isolated before the business approves a migration. CutoverCheck compares two CSV exports and produces an auditable exception register and a deterministic readiness decision.
 
+![Sample reconciliation report preview](docs/preview.svg)
+
 ## Review in two minutes
 
 | Scenario | Result | Evidence |

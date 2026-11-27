@@ -20,3 +20,4 @@ test("unclosed quote rejected",()=>assert.ok((()=>{try{parseCsv('sku,warehouse,q
 test("negative tolerance rejected",()=>assert.ok((()=>{try{reconcile([],[],-1);return false;}catch{return true;}})()));
 test("extra columns invalid",()=>assert.ok((()=>reconcile(parseCsv("sku,warehouse,quantity\nA,P,2,x"),parseCsv(clean)).issues.some(x=>x.type==="invalid"))()));
 test("case-sensitive keys",()=>assert.ok((()=>reconcile(parseCsv("sku,warehouse,quantity\nA,P,2"),parseCsv("sku,warehouse,quantity\na,P,2")).issues.length===2)()));
+test('delimiter-only record is invalid, not a blank line',()=>{const csv='sku,warehouse,quantity\nA,P,2\n,,\n';const r=reconcile(parseCsv(csv),parseCsv('sku,warehouse,quantity\nA,P,2'));assert.equal(r.issues[0].type,'invalid');assert.equal(r.status,'BLOCKED');});

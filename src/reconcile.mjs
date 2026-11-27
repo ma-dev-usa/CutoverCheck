@@ -5,13 +5,13 @@ function parseCsv(text) {
     const c=text[i];
     if(quoted){if(c==='"'){if(text[i+1]==='"'){field+='"';i++;}else{quoted=false;closed=true;}}else field+=c;continue;}
     if(c===","){row.push(field);field="";closed=false;}
-    else if(c==="\n"||c==="\r"){if(c==="\r"&&text[i+1]==="\n")i++;row.push(field);if(row.some(v=>v!==""))rows.push(row);row=[];field="";closed=false;}
+    else if(c==="\n"||c==="\r"){if(c==="\r"&&text[i+1]==="\n")i++;row.push(field);if(row.length>1||row.some(v=>v!==""))rows.push(row);row=[];field="";closed=false;}
     else if(c==='"'&&!field&&!closed)quoted=true;
     else if(c==='"'||closed)throw new Error("Malformed CSV quoting");
     else field+=c;
   }
   if(quoted)throw new Error("Unclosed CSV field");
-  if(field||row.length||closed){row.push(field);if(row.some(v=>v!==""))rows.push(row);}
+  if(field||row.length||closed){row.push(field);if(row.length>1||row.some(v=>v!==""))rows.push(row);}
   if(!rows.length)throw new Error("CSV is empty");
   const header=rows.shift().map(v=>v.trim());
   if(header.length!==3||new Set(header).size!==3||!["sku","warehouse","quantity"].every(v=>header.includes(v)))throw new Error("Expected columns: sku, warehouse, quantity");

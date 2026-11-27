@@ -12,13 +12,13 @@ function parseCsv(text) {
     const c=text[i];
     if(quoted){if(c==='"'){if(text[i+1]==='"'){field+='"';i++;}else{quoted=false;closed=true;}}else field+=c;continue;}
     if(c===","){row.push(field);field="";closed=false;}
-    else if(c==="\n"||c==="\r"){if(c==="\r"&&text[i+1]==="\n")i++;row.push(field);if(row.some(v=>v!==""))rows.push(row);row=[];field="";closed=false;}
+    else if(c==="\n"||c==="\r"){if(c==="\r"&&text[i+1]==="\n")i++;row.push(field);if(row.length>1||row.some(v=>v!==""))rows.push(row);row=[];field="";closed=false;}
     else if(c==='"'&&!field&&!closed)quoted=true;
     else if(c==='"'||closed)throw new Error("Malformed CSV quoting");
     else field+=c;
   }
   if(quoted)throw new Error("Unclosed CSV field");
-  if(field||row.length||closed){row.push(field);if(row.some(v=>v!==""))rows.push(row);}
+  if(field||row.length||closed){row.push(field);if(row.length>1||row.some(v=>v!==""))rows.push(row);}
   if(!rows.length)throw new Error("CSV is empty");
   const header=rows.shift().map(v=>v.trim());
   if(header.length!==3||new Set(header).size!==3||!["sku","warehouse","quantity"].every(v=>header.includes(v)))throw new Error("Expected columns: sku, warehouse, quantity");
@@ -68,6 +68,7 @@ const sourceSample="sku,warehouse,quantity\nA100,PDX,25\nA200,PDX,10\nA300,PDX,8
 const el=id=>document.getElementById(id);let latest=null;
 function run(){try{el('error').textContent='';latest=reconcile(parseCsv(el('source').value),parseCsv(el('target').value),Number(el('tolerance').value));el('status').textContent='Cutover decision: '+latest.status;el('status').className=latest.status==='READY'?'ready':'blocked';el('metrics').replaceChildren();for(const [label,val] of [['Source records',latest.sourceRecords],['Target records',latest.targetRecords],['Exact matches',latest.matched],['Blocking findings',latest.issues.length]]){const d=document.createElement('div');d.className='metric';d.textContent=label;const s=document.createElement('strong');s.textContent=val;d.append(s);el('metrics').append(d);}el('issues').replaceChildren();for(const x of latest.issues){const tr=document.createElement('tr');for(const k of ['type','side','sku','warehouse','detail']){const td=document.createElement('td');td.textContent=x[k];tr.append(td);}el('issues').append(tr);}el('note').textContent=latest.issues.length?'Resolve blockers and re-run both exports.':'No blocking findings. '+latest.withinTolerance+' matched within tolerance.';el('export').disabled=false;}catch(e){latest=null;el('error').textContent=e.message;el('status').textContent='Results unavailable';el('status').className='blocked';el('metrics').replaceChildren();el('issues').replaceChildren();el('note').textContent='';el('export').disabled=true;}}
 function load(a,b){el('source').value=a;el('target').value=b;el('tolerance').value='0';run();}
+for(const id of ['source','target','tolerance'])el(id).addEventListener('input',()=>{latest=null;el('export').disabled=true;el('status').textContent='Inputs changed; run reconciliation';el('status').className='';el('metrics').replaceChildren();el('issues').replaceChildren();el('note').textContent='';});
 el('run').onclick=run;el('sample').onclick=()=>load(sourceSample,targetSample);el('clean').onclick=()=>load(cleanSample,cleanSample);
 for(const side of ['source','target'])el(side+'File').onchange=async e=>{try{const f=e.target.files[0];if(!f)return;if(f.size>10000000)throw Error('File exceeds 10 MB');el(side).value=await f.text();run();}catch(err){el('error').textContent=err.message;}};
 el('export').onclick=()=>{if(!latest)return;const url=URL.createObjectURL(new Blob([JSON.stringify(latest,null,2)+'\n'],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='cutover-report.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};load(sourceSample,targetSample);
